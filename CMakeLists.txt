@@ -153,6 +153,9 @@ add_avr_executable(
    gpio.h
    globals.h
    defs.h
+   crc.h
+   serial.h
+   serial.c
 )
 
 ##################################################################################
