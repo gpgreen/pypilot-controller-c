@@ -3,16 +3,20 @@
  * at: /usr/lib/avr/include/avr/
  *
  * Fuse bits for atmega328p
- * External Crystal Oscillator 258CK, start up + 65ms
+ * internal Crystal Oscillator 6CK, start up + 65ms
  * clock prescaler divide by 8
+ * boot flash section size=1024 words, boot start address=$3C00, BOOTRST=01
  * serial programming enabled
- * brown-out at 4.0V
- * Low=0x5e Hi=0xd9 Ext=0xfb
+ * brown-out at 4.3V
+ * Low=0x62 Hi=0xdb Ext=0xfc
  * avrdude settings:
- * -U lfuse:w:0x5e:m -U hfuse:w:0xd9:m
- * -U efuse:w:0xfb:m
+ * -U lfuse:w:0x62:m -U hfuse:w:0xdb:m
+ * -U efuse:w:0xfc:m
  * from http://www.engbedded.com/fusecalc/
  *
+ * Timer0 is used for pwm
+ * Timer1 is used for 20/80 hz timer
+ * Timer2 is used for timer.h (needs define in defs.h)
  */
 
 #include "defs.h"
@@ -99,20 +103,22 @@ can_init_t can_settings = {
 struct mcp2515_dev g_mcp2515_dev = {
 	// settings structure
 	.settings = &can_settings,
-	// interrupt control register, controlling edge detection
-	.int_dir_reg = &EICRA,
-	// mask for interrupt control register for edge detection, falling edge
-	.int_dir_mask = _BV(ISC01),
+	// interrupt control register, controlling edge detection, or which pin change mask register
+	.int_dir_reg = &PCMSK0,
+	// mask for interrupt control register for edge detection, falling edge, or which pin change enable mask
+	.int_dir_mask = _BV(1),
 	// interrupt control register, enable/disable
-	.int_en_reg = &EIMSK,
+	.int_en_reg = &PCICR,
 	// mask for interrupt control register
-	.int_en_mask = _BV(INT0),
+	.int_en_mask = _BV(PCIE0),
 	// GPIO port interrupt is on
-	.port = &PORTD,
+	.port = &PORTB,
 	// GPIO port direction control register
-	.ddr_port = &DDRD,
+	.ddr_port = &DDRB,
+    // port pin register for interrupt
+    .pin = &PINB,
 	// GPIO pin mask
-	.port_pin = _BV(2),
+	.port_pin = _BV(1),
 };
 
 /*-----------------------------------------------------------------------*/
@@ -152,53 +158,37 @@ struct can_device candev = {
 
 // this function is called if CAN doesn't work, otherwise
 // use the failed fn below
-// blinks continuously at 20 hz to show offline
+// blinks 4 times at 20 hz then a long pause then repeat
+// the led is normally part of SPI (SCK)
 void
-offline(void)
+panic(void)
 {
-	uint8_t on = 1;
-//	led1_on();
+    uint8_t count = 0;
+    uint8_t major_count = 0;
+    uint8_t minor_count = 0;
+    // turn off spi, so led will work
+    SPCR = 0;
+    DDR_SPI |= _BV(P_SCK);
+    led_on(0);
 	while (1) {
+        // reset the watchdog, so it doesn't reboot the mcu
+        wdt_reset();
 		// 10 hz timer
 		if (g_timer20_set)
 		{
-			g_timer20_set = 0;
-//			if (on)
-//				led1_off();
-//			else
-//				led1_on();
-			on ^= 1;
-		}
-	}
-}
-
-/*-----------------------------------------------------------------------*/
-
-// main entry for showing board failure
-// blinks the errorcode then a longer pause
-void
-failed(uint8_t err)
-{
-	errcode = err;
-	uint8_t count = 0;
-	uint8_t pause = 0;
-	while (1) {
-		// 20 hz timer
-		if (g_timer20_set)
-		{
-			g_timer20_set = 0;
-			if (pause) {
-				--pause;
-			} else {
-//				if (bit_is_set(count, 0))
-//					led2_off();
-//				else
-//					led2_on();
-				if (++count == errcode * 2) {
-					pause = 8;
-					count = 0;
-				}
-			}
+            if (++count == 4) {
+                count = 0;
+                if (major_count == 0) {
+                    led_toggle(0);
+                    if (++minor_count == 7)
+                        major_count++;
+                } else if (major_count++ == 4) {
+                    major_count = 0;
+                    minor_count = 0;
+                    led_on(0);
+                }
+            }
+            g_timer20_set = 0;
 		}
 	}
 }
@@ -239,20 +229,20 @@ ioinit(void)
 	
 	// spi needs to be setup first
 	if (spi_init(4) == SPI_FAILED)
-		offline();
+		panic();
 	
 	puts_P(PSTR("spi initialized."));
 	
 	// setup CAN stack
 	errcode = can_init(&can_settings, &candev);
 	if (errcode == CAN_OK)
-		offline();
+		panic();
 	puts_P(PSTR("can initialized."));
 	
 	// self test the CAN stack
 	errcode = can_self_test(&candev);
 	if (errcode != CAN_OK)
-		offline();
+		panic();
 	puts_P(PSTR("can self-test complete."));
 
 	watchdog_reset();
@@ -284,9 +274,6 @@ main(void)
     while(1)
     {
 		watchdog_reset();
-		
-		// write the eeprom if necessary
-		//canaero_write_eeprom_task();
 
 		int status;
 		if(can_handle_interrupt(&candev, &status) == CAN_INTERRUPT) {
@@ -303,24 +290,24 @@ main(void)
         if (g_timer80_set)
         {
             g_timer80_set = 0;
-//			puts_P(PSTR("80hz"));
+			puts_P(PSTR("80hz"));
 			// find the current time in tenth ms
 			uint32_t ct = jiffie();
 			// calc the elapsed time in tenth ms
 			g_cycle_time = timer_elapsed(lt, ct);
 			// reset the last time
 			lt = ct;
-//			puts_P(PSTR("end 80hz"));
+			puts_P(PSTR("end 80hz"));
         }
 
         // 20 hz timer
         if (g_timer20_set)
         {
-//            puts_P(PSTR("20hz"));
+            puts_P(PSTR("20hz"));
             
             g_timer20_set = 0;
-			
-//			puts_P(PSTR("end 20hz"));
+            
+			puts_P(PSTR("end 20hz"));
         }
 
     }

@@ -13,10 +13,7 @@ extern uint32_t g_cycle_time;
 // error number
 extern volatile uint8_t errcode;
 
-// can stack offline
-extern void offline(void);
-
-// main error entry
-extern void failed(uint8_t errcode);
+// firmware failed
+extern void panic(void);
 
 #endif  // GLOBALS_H_

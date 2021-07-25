@@ -20,15 +20,15 @@ cmake_minimum_required(VERSION 2.8)
 # tools to be used for programming the AVR
 ##################################################################################
 set(AVR_UPLOADTOOL avrdude)
-set(AVR_PROGRAMMER usbtiny)
-set(AVR_UPLOADTOOL_PORT usb)
+set(AVR_PROGRAMMER arduino)
+set(AVR_UPLOADTOOL_PORT /dev/ttyUSB0)
 # AVR and fuses needs to be set
 set(AVR_MCU atmega328p)
 set(AVRDUDE_MCU m328p)
 set(AVR_USE_E_FUSE on)
-set(AVR_E_FUSE 0xfb)
-set(AVR_H_FUSE 0xd9)
-set(AVR_L_FUSE 0x5e)
+set(AVR_E_FUSE 0xfc)
+set(AVR_H_FUSE 0xdb)
+set(AVR_L_FUSE 0x62)
 
 ### END TOOLCHAIN SETUP AREA #############################################
 

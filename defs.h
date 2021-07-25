@@ -24,6 +24,9 @@
 /* define baud rate for serial comm */
 #define BAUD                            57600
 
+/* define using Timer2 for jiffies */
+#define USE_TIMER2_JIFFIES             1
+
 /*-----------------------------------------------------------------------*/
 
 /* DEBUGGING */
@@ -44,15 +47,16 @@
 #define MCP_RECVBUFLEN                  10
 #define MCP_ERRBUFLEN                   20
 
-/* MCP interrupt vector */
-#define MCP2515_INT_VECT                INT0_vect
+/* MCP interrupt vector on arduino d9 (PB1) (pcint1) */
+#define MCP2515_INT_VECT_ANY_CHANGE     1
+#define MCP2515_INT_VECT                PCINT0_vect
 
-/* CS pin tied to arduino 10 (PB2)*/
+/* CS pin tied to arduino d10 (PB2)*/
 #define DDR_CANCS                       DDRB
 #define PORT_CANCS                      PORTB
 #define P_CANCS                         2
 
-/* SPI pins tied to arduino 11(MOSI), 12(MISO), 13(SCK)*/
+/* SPI pins tied to arduino d11(MOSI), d12(MISO), d13(SCK)*/
 #define DDR_SPI                         DDRB
 #define PORT_SPI                        PORTB
 #define P_MOSI                          3
