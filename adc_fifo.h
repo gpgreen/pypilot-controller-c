@@ -94,7 +94,7 @@ inline int adc_fifo_put_unsafe(struct adc_fifo* fifo, adc_sample_t* s)
  */
 inline uint8_t adc_fifo_get_safe(struct adc_fifo* fifo, adc_sample_t* s)
 {
-    uint8_t retval = ADC_FIFO_FULL;
+    uint8_t retval = ADC_FIFO_EMPTY;
 	ATOMIC_BLOCK(ATOMIC_FORCEON) 
 	{
         if (fifo->count != 0)

@@ -25,17 +25,18 @@
 #include <util/delay.h>
 #include <stdio.h>
 #include <string.h>
+#include "globals.h"
 #include "uart.h"
 #include "gpio.h"
-#include "serial.h"
-#include "packet.h"
 #include "timer.h"
 #include "timer1.h"
 #include "spi.h"
 #include "can.h"
-#include "globals.h"
 #include "watchdog.h"
 #include "mcp2515.h"
+#include "serial.h"
+#include "packet.h"
+#include "pypilot_adc.h"
 
 /*-----------------------------------------------------------------------*/
 // globals
@@ -232,7 +233,7 @@ system_start(void)
 /*-----------------------------------------------------------------------*/
 
 void
-ioinit(void)
+ioinit(adc_results_t* adc_results)
 {
 	gpio_setup();
 
@@ -268,6 +269,10 @@ ioinit(void)
 		panic();
 	puts_P(PSTR("can self-test complete."));
 
+    // the adc results
+    adc_results_init(adc_results);
+    puts_P(PSTR("adc initialized."));
+    
 	watchdog_reset();
 	
 	watchdog_print_flags();
@@ -300,8 +305,11 @@ main(void)
     packet_state_t packet_state;
     packet_initialize_state(&packet_state);
 
+    // the adc results variable
+    adc_results_t adc_results;
+    
     // initialize hardware
-    ioinit();
+    ioinit(&adc_results);
 
 	sei();
 
@@ -312,6 +320,8 @@ main(void)
     {
 		watchdog_reset();
 
+        adc_process(&adc_results);
+        
 		int status;
 		if(can_handle_interrupt(&candev, &status) == CAN_INTERRUPT) {
 			can_msg_t incoming;
@@ -322,17 +332,23 @@ main(void)
 					// do something with any incoming msgs
 			}
         }
-		
+
         // 200 hz timer
         if (g_timer200_set)
         {
             g_timer200_set = 0;
 			//puts_P(PSTR("200hz"));
 
+            // increment the timeouts
+            state.timeout++;
+            state.comm_timeout++;
+
             // check for incoming bytes, return positive if bytes received
             if (serial_process(&serial_state, &state.flags, &state.cmd))
                 state.comm_timeout = 0;
 
+            adc_process(&adc_results);
+        
             // send out packets if ready
             serial_send(&state.cmd);
             

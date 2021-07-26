@@ -1,7 +1,7 @@
 #ifndef _PYPILOT_ADC_H_
 #define _PYPILOT_ADC_H_
 
-#include <inttypes.h>
+#include <stdint.h>
 
 /*-----------------------------------------------------------------------*/
 
@@ -10,7 +10,7 @@ extern uint8_t adc_sample_fifo_ovf(void);
 /*-----------------------------------------------------------------------*/
 
 typedef enum AdcChannel {
-    Current,
+    Current = 0,
     Voltage,
     ControllerTemp,
     MotorTemp,
