@@ -16,13 +16,15 @@ typedef struct serial_state
 
 /*-----------------------------------------------------------------------*/
 
-extern uint8_t get_next_byte(uint8_t *ch);
+extern void serial_initialize_state(serial_state_t* serial_state);
 
-extern uint8_t transmit_bytes(uint8_t *buf, uint8_t buflen);
+extern uint8_t serial_get_next_byte(uint8_t *ch);
 
-extern void send_serial(command_to_execute_t* cmd);
+extern uint8_t serial_transmit_bytes(uint8_t *buf, uint8_t buflen);
 
-extern uint8_t process_serial(serial_state_t* state, uint16_t* flags, command_to_execute_t* cmd);
+extern void serial_send(command_to_execute_t* cmd);
+
+extern uint8_t serial_process(serial_state_t* state, uint16_t* flags, command_to_execute_t* cmd);
 
 /*-----------------------------------------------------------------------*/
 

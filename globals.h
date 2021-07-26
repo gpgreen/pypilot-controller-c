@@ -23,6 +23,10 @@ extern volatile uint8_t errcode;
 extern void panic(void);
 
 /*-----------------------------------------------------------------------*/
+
+extern const uint8_t LOWCURRENT;
+
+/*-----------------------------------------------------------------------*/
 // bitflags for status
 #define SYNC               (0)
 #define OVERTEMPFAULT      (1)
@@ -43,26 +47,95 @@ extern void panic(void);
 typedef uint16_t status_flags_t;
 
 /*-----------------------------------------------------------------------*/
-enum command_execute {
+// values for packet type fields
+// input codes
+#define ReprogramCode               (0x19)
+#define ResetCode                   (0xe7)
+#define CommandCode                 (0xc7)
+#define MaxCurrentCode              (0x1e)
+#define MaxControllerTempCode       (0xa4)
+#define MaxMotorTempCode            (0x5a)
+#define RudderRangeCode             (0xb6)
+#define RudderMinCode               (0x2b)
+#define RudderMaxCode               (0x4d)
+#define DisengageCode               (0x68)
+#define MaxSlewCode                 (0x71)
+#define EEPROMReadCode              (0x91)
+#define EEPROMWriteCode             (0x53)
+// output codes
+#define CurrentCode                 (0x1c)
+#define VoltageCode                 (0xb3)
+#define ControllerTempCode          (0xf9)
+#define MotorTempCode               (0x48)
+#define RudderSenseCode             (0xa7)
+#define FlagsCode                   (0x8f)
+#define EEPROMValueCode             (0x9a)
+#define InvalidCode                 (0x00)
+// for debugging
+#define CurrentFSM                  (0x20)
+#define PreviousFSM                 (0x21)
+
+typedef uint8_t packet_type_t;
+
+/*-----------------------------------------------------------------------*/
+
+typedef enum command_execute {
     Stop = 0,
     Engage,
     Disengage,
     ProcessPacket,
     SendPacket,
     None,
-};
-enum outgoing_packet {
+} command_execute_t;
+
+typedef enum outgoing_packet_cmd {
     Skip,
     Send,
-};
+} outgoing_packet_cmd_t;
 
 typedef struct command_exe 
 {
-    enum command_execute pending_cmd;
-    enum outgoing_packet send_cmd;
+    command_execute_t pending_cmd;
+    outgoing_packet_cmd_t send_cmd;
     uint8_t in_packet[3];
     uint8_t out_packet[3];
 } command_to_execute_t;
+
+/*-----------------------------------------------------------------------*/
+
+typedef enum fsm_states {
+    Start,
+    WaitEntry,
+    Wait,
+    Engaged,
+    Operational,
+    DisengageEntry,
+    DetachEntry,
+    Detach,
+    PowerDown,
+} fsm_states_t;
+
+/*-----------------------------------------------------------------------*/
+// main state for the firmware
+typedef struct state 
+{
+    fsm_states_t machine_state[2];
+    fsm_states_t prev_state[2];
+    uint16_t timeout;
+    uint16_t comm_timeout;
+    uint16_t command_value;
+    uint16_t lastpos;
+    uint8_t max_slew_speed;
+    uint8_t max_slew_slow;
+    uint16_t max_voltage;
+    uint16_t max_current;
+    uint16_t max_controller_temp;
+    uint16_t max_motor_temp;
+    uint16_t rudder_min;
+    uint16_t rudder_max;
+    status_flags_t flags;
+    command_to_execute_t cmd;
+} state_t;
 
 /*-----------------------------------------------------------------------*/
 #endif  // GLOBALS_H_

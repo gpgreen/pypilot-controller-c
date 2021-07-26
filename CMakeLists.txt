@@ -153,9 +153,16 @@ add_avr_executable(
    gpio.h
    globals.h
    defs.h
+   adc_fifo.h
    crc.h
    serial.h
    serial.c
+   packet.h
+   packet.c
+   pypilot_eeprom.h
+   pypilot_eeprom.c
+   pypilot_adc.h
+   pypilot_adc.c
 )
 
 ##################################################################################

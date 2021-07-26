@@ -6,8 +6,16 @@
 #include "crc.h"
 
 /*-----------------------------------------------------------------------*/
+void serial_initialize_state(serial_state_t* serial_state)
+{
+    memset(serial_state->incoming_bytes, 0, 3);
+    serial_state->incoming_idx = 0;
+    serial_state->sync_count = 0;
+}
+
+/*-----------------------------------------------------------------------*/
 // returns 0 if no new byte, 1 if new byte, byte is placed in ch
-uint8_t get_next_byte(uint8_t *ch)
+uint8_t serial_get_next_byte(uint8_t *ch)
 {
     if (uart_getchar_unblocking(ch))
         return 0xFF;
@@ -16,7 +24,7 @@ uint8_t get_next_byte(uint8_t *ch)
 
 /*-----------------------------------------------------------------------*/
 // returns number of bytes placed on transmit queue
-uint8_t transmit_bytes(uint8_t *buf, uint8_t buflen)
+uint8_t serial_transmit_bytes(uint8_t *buf, uint8_t buflen)
 {
     uint8_t count = 0;
     for (int i=0; i<buflen; i++)
@@ -34,13 +42,13 @@ uint8_t transmit_bytes(uint8_t *buf, uint8_t buflen)
  * if a packet is received, set pending_cmd to process it
  * set flags as required for communication state
  */
-void send_serial(command_to_execute_t* cmd)
+void serial_send(command_to_execute_t* cmd)
 {
     if (cmd->send_cmd == Send)
     {
         uint8_t crc = crc8(cmd->out_packet, 3);
         uint8_t pkt[4] = {cmd->out_packet[0], cmd->out_packet[1], cmd->out_packet[2], crc};
-        transmit_bytes(pkt, 4);
+        serial_transmit_bytes(pkt, 4);
     }
 }
 
@@ -50,7 +58,7 @@ void send_serial(command_to_execute_t* cmd)
  * if a packet is received, set pending_cmd to process it
  * set flags as required for communication state
  */
-uint8_t process_serial(serial_state_t* state, status_flags_t* flags, command_to_execute_t* cmd)
+uint8_t serial_process(serial_state_t* state, status_flags_t* flags, command_to_execute_t* cmd)
 {
     // check overflow flags
     if (uart_read_fifo_ovf()) {
@@ -63,7 +71,7 @@ uint8_t process_serial(serial_state_t* state, status_flags_t* flags, command_to_
     }
     uint8_t reset_comm_timeout = 0;
     uint8_t byte;
-    if (get_next_byte(&byte)) {
+    if (serial_get_next_byte(&byte)) {
         // reset the serial timeout now, since we've received data
         reset_comm_timeout = 0xFF;
         if (state->incoming_idx < 3) {

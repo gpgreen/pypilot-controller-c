@@ -24,8 +24,11 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #include <stdio.h>
+#include <string.h>
 #include "uart.h"
 #include "gpio.h"
+#include "serial.h"
+#include "packet.h"
 #include "timer.h"
 #include "timer1.h"
 #include "spi.h"
@@ -33,21 +36,6 @@
 #include "globals.h"
 #include "watchdog.h"
 #include "mcp2515.h"
-
-/*-----------------------------------------------------------------------*/
-
-// set serial port to stdio
-static FILE uart_ostr = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
-static FILE uart_istr = FDEV_SETUP_STREAM(NULL, uart_getchar, _FDEV_SETUP_READ);
-
-// internal timer flags
-
-// 20 hz timer flag
-volatile uint8_t g_timer20_set;
-const uint8_t k_timer20_compare_count = 4;
-
-// 80 hz timer flag
-volatile uint8_t g_timer80_set;
 
 /*-----------------------------------------------------------------------*/
 // globals
@@ -61,6 +49,23 @@ volatile uint8_t errcode;
 // the cycle time (approx 80hz) in tenth milliseconds
 uint32_t g_cycle_time;
 
+const uint8_t LOWCURRENT = 1;
+
+/*-----------------------------------------------------------------------*/
+
+// set serial port to stdio
+static FILE uart_ostr = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+static FILE uart_istr = FDEV_SETUP_STREAM(NULL, uart_getchar, _FDEV_SETUP_READ);
+
+// internal timer flags
+
+// 20 hz timer flag
+volatile uint8_t g_timer20_set;
+const uint8_t k_timer20_compare_count = 10;
+
+// 200 hz timer flag
+volatile uint8_t g_timer200_set;
+
 /*-----------------------------------------------------------------------*/
 
 // uart buffers
@@ -71,13 +76,11 @@ uint8_t rx_fifo_buffer[RX_FIFO_BUFFER_SIZE];
 
 void timer1_compareA(void)
 {
-	g_timer80_set = 1;
-    // every 'k_timer20_compare_count' compare match events is an 20 hz tick
-    static uint8_t timer20_count;
-	if (++timer20_count == k_timer20_compare_count)
-    {
-		timer20_count = 0;
-		g_timer20_set = 1;
+	g_timer200_set = 1;
+    static uint8_t cnt = 0;
+    if (cnt++ == k_timer20_compare_count) {
+        g_timer20_set = 1;
+        cnt = 0;
     }
 }
 
@@ -85,8 +88,8 @@ static timer1_init_t timer1_settings = {
     .scale = CLK8,
     .compareA_cb = timer1_compareA,
     .compareB_cb = 0,
-    // compare A triggers at 80Hz
-    .compareA_val = (F_CPU / 80 / 8),
+    // compare A triggers at 200Hz
+    .compareA_val = (F_CPU / 200 / 8),
     .compareB_val = 0,
 };
 
@@ -156,9 +159,8 @@ struct can_device candev = {
 
 /*-----------------------------------------------------------------------*/
 
-// this function is called if CAN doesn't work, otherwise
-// use the failed fn below
-// blinks 4 times at 20 hz then a long pause then repeat
+// panic the firmware
+// blinks 4 times at 10 hz then a long pause then repeat
 // the led is normally part of SPI (SCK)
 void
 panic(void)
@@ -173,7 +175,7 @@ panic(void)
 	while (1) {
         // reset the watchdog, so it doesn't reboot the mcu
         wdt_reset();
-		// 10 hz timer
+		// 20 hz timer
 		if (g_timer20_set)
 		{
             if (++count == 4) {
@@ -191,6 +193,27 @@ panic(void)
             g_timer20_set = 0;
 		}
 	}
+}
+
+/*-----------------------------------------------------------------------*/
+
+void state_initialize(state_t* state)
+{
+    memset(state, 0, sizeof(state_t));
+    state->machine_state[0] = state->machine_state[1] = Start;
+    state->prev_state[0] = state->prev_state[1] = Start;
+    state->comm_timeout = 250;
+    state->command_value = state->lastpos = 1000;
+    state->max_slew_speed = 15;
+    state->max_slew_slow = 35;
+    state->max_voltage = 1600;
+    state->max_current = 2000;
+    state->max_controller_temp = 7000;
+    state->max_motor_temp = 7000;
+    state->rudder_max = 65535;
+    state->flags = 0;
+    state->cmd.pending_cmd = None;
+    state->cmd.send_cmd = Skip;
 }
 
 /*-----------------------------------------------------------------------*/
@@ -265,7 +288,21 @@ main(void)
 	// stdin is the uart
 	stdin = &uart_istr;
 	
+    // the state variable
+    state_t state;
+    state_initialize(&state);
+    
+    // the serial state variable
+    serial_state_t serial_state;
+    serial_initialize_state(&serial_state);
+    
+    // the packet state variable
+    packet_state_t packet_state;
+    packet_initialize_state(&packet_state);
+
+    // initialize hardware
     ioinit();
+
 	sei();
 
 	// keep track of the last time
@@ -286,18 +323,25 @@ main(void)
 			}
         }
 		
-        // 80 hz timer
-        if (g_timer80_set)
+        // 200 hz timer
+        if (g_timer200_set)
         {
-            g_timer80_set = 0;
-			puts_P(PSTR("80hz"));
+            g_timer200_set = 0;
+			//puts_P(PSTR("200hz"));
+
+            // check for incoming bytes, return positive if bytes received
+            if (serial_process(&serial_state, &state.flags, &state.cmd))
+                state.comm_timeout = 0;
+
+            // send out packets if ready
+            serial_send(&state.cmd);
+            
 			// find the current time in tenth ms
 			uint32_t ct = jiffie();
 			// calc the elapsed time in tenth ms
 			g_cycle_time = timer_elapsed(lt, ct);
 			// reset the last time
 			lt = ct;
-			puts_P(PSTR("end 80hz"));
         }
 
         // 20 hz timer
@@ -306,8 +350,6 @@ main(void)
             puts_P(PSTR("20hz"));
             
             g_timer20_set = 0;
-            
-			puts_P(PSTR("end 20hz"));
         }
 
     }
