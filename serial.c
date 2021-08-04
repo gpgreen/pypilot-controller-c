@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------*/
 #include <string.h>
-
+#include <avr/sfr_defs.h>
 #include "uart.h"
 #include "serial.h"
 #include "crc.h"
@@ -50,6 +50,34 @@ void serial_send(command_to_execute_t* cmd)
         uint8_t pkt[4] = {cmd->out_packet[0], cmd->out_packet[1], cmd->out_packet[2], crc};
         serial_transmit_bytes(pkt, 4);
     }
+}
+
+
+/*-----------------------------------------------------------------------*/
+/* check for incoming bytes, convert to packets by checking crc
+ * if a packet is received, set pending_cmd to process it
+ * set flags as required for communication state
+ * use in stdout, stderr file streams
+ */
+int serial_char_send(char c, FILE* unused)
+{
+    static uint8_t msg_buf[4] = {MsgCode, 0, 0, 0};
+    static uint8_t msg_idx = 1;
+
+    msg_buf[msg_idx] = c;
+    if (++msg_idx == 3) {
+        goto send_pkt;
+    } else if (c == '\n') {
+        if (msg_idx == 2)
+            msg_buf[2] = 0;
+        goto send_pkt;
+    }
+    return 0;
+send_pkt:
+    msg_buf[3] = crc8(msg_buf, 3);
+    msg_idx = 1;
+    serial_transmit_bytes(msg_buf, 4);
+    return 0;
 }
 
 

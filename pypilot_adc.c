@@ -9,7 +9,7 @@ static uint8_t SAMPLE_OVF = 0;
 
 static struct adc_fifo SAMPLE_QUEUE;
 
-static uint8_t CHANNELS_ENABLED = 0;
+static uint8_t CHANNELS_ENABLED = 0x3;
 
 /*-----------------------------------------------------------------------*/
 
@@ -174,53 +174,52 @@ ISR(ADC_vect)
         uint8_t switch_channel = 0;
         switch (SAMPLE.channel) {
         case Current:
-            if (SAMPLE.count >= 50)
+            if (SAMPLE.count == 50)
                 switch_channel = 0xFF;
             break;
         case Voltage:
-            if (SAMPLE.count >= 8)
+            if (SAMPLE.count == 8)
                 switch_channel = 0xFF;
             break;
         case ControllerTemp: case MotorTemp: case Rudder:
-            if (SAMPLE.count >= 1)
+            if (SAMPLE.count == 1)
                 switch_channel = 0xFF;
             break;
         }
         if (switch_channel) {
             uint8_t enabled = adc_channel_enabled(SAMPLE.channel);
             // if enabled, queue the sample
-            if (enabled) {
-                if (adc_fifo_put_unsafe(&SAMPLE_QUEUE, &SAMPLE) == ADC_FIFO_FULL) {
-                    SAMPLE_OVF = 0xFF;
-                }
+            if (enabled && adc_fifo_put_unsafe(&SAMPLE_QUEUE, &SAMPLE) == ADC_FIFO_FULL) {
+                SAMPLE_OVF = 0xFF;
             }
-            // get next channel, and change mux
+            // get next channel
             adc_channel_t ch = SAMPLE.channel;
-            while (1) {
-                switch (SAMPLE.channel) {
-                case Current:
-                    ch = Voltage;
-                    ADMUX |= _BV(REFS0);
-                    break;
-                case Voltage:
-                    ch = ControllerTemp;
-                    ADMUX |= _BV(REFS1) | _BV(MUX1);
-                    break;
-                case ControllerTemp:
-                    ch = MotorTemp;
-                    ADMUX |= _BV(REFS0) | _BV(MUX1) | _BV(MUX0);
-                    break;
-                case MotorTemp:
-                    ch = Rudder;
-                    ADMUX |= _BV(REFS0) | _BV(MUX2);
-                    break;
-                case Rudder:
-                    ch = Current;
-                    ADMUX |= _BV(REFS0) | _BV(MUX0);
-                    break;
-                }
-                if (adc_channel_enabled(ch))
-                    break;
+            do {
+                if (++ch == 5)
+                    ch = 0;
+            } while (adc_channel_enabled(ch) == 0);
+            // change mux
+            switch (ch) {
+            case Current:
+                // Current is on ADC1
+                ADMUX = _BV(REFS0) | _BV(MUX0);
+                break;
+            case Voltage:
+                // Voltage on pin ADC0
+                ADMUX = _BV(REFS0);
+                break;
+            case ControllerTemp:
+                // Controller Temp on pin ADC2
+                ADMUX = _BV(REFS0) | _BV(MUX1);
+                break;
+            case MotorTemp:
+                // Motor Temp on pin ADC3
+                ADMUX = _BV(REFS0) | _BV(MUX1) | _BV(MUX0);
+                break;
+            case Rudder:
+                // Rudder angle on pin ADC4
+                ADMUX = _BV(REFS0) | _BV(MUX2);
+                break;
             }
             adc_sample_reset(&SAMPLE, ch);
             CNT = 0;

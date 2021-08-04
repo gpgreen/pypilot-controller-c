@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <stdint.h>
 #include <avr/io.h>
 
 #include "gpio.h"
@@ -91,6 +91,26 @@ void led_toggle(int n)
     }
 }
 
+inline void set_ina_low(void)
+{
+    PORT_INA &= ~_BV(P_INA);
+}
+
+inline void set_inb_low(void)
+{
+    PORT_INB &= ~_BV(P_INB);
+}
+
+inline void set_ina_high(void)
+{
+    PORT_INA |= _BV(P_INA);
+}
+
+inline void set_inb_high(void)
+{
+    PORT_INB |= _BV(P_INB);
+}
+
 void gpio_setup(void)
 {
     // for debugging, we have 7 led's, 1 of which is tied to SPI SCK pin
@@ -102,4 +122,18 @@ void gpio_setup(void)
 
     // disconnect all digital registers from adc pins
     DIDR0 |= 0x3F;
+
+    // set INA/B pins to output
+    DDR_INA |= _BV(P_INA);
+    DDR_INB |= _BV(P_INB);
+
+    // set INA/B pins low
+    set_ina_low();
+    set_ina_low();
+
+    // set SPI pins
+    DDR_CANCS |= P_CANCS;
+    DDR_SPI |= P_MISO;
+    // set CS high
+    PORT_CANCS |= P_CANCS;
 }

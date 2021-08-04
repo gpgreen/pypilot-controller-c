@@ -22,7 +22,6 @@
 #include "defs.h"
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
-#include <util/delay.h>
 #include <stdio.h>
 #include <string.h>
 #include "globals.h"
@@ -37,6 +36,7 @@
 #include "serial.h"
 #include "packet.h"
 #include "pypilot_adc.h"
+#include "pypilot_fsm.h"
 
 /*-----------------------------------------------------------------------*/
 // globals
@@ -50,12 +50,24 @@ volatile uint8_t errcode;
 // the cycle time (approx 80hz) in tenth milliseconds
 uint32_t g_cycle_time;
 
+// constants
 const uint8_t LOWCURRENT = 1;
+const uint16_t MAX_CURRENT = 2000; // 20 amps
+const uint16_t MAX_VOLTAGE = 1600; // 16 volts max in 12 volt mode
+const uint16_t MAX_CONTROLLER_TEMP = 7000; // 70C
+const uint16_t MAX_MOTOR_TEMP = 7000; // 70C
+
+/*-----------------------------------------------------------------------*/
+
+// simavr stuff
+#include <avr/avr_mcu_section.h>
+AVR_MCU(F_CPU, "atmega328p");
+AVR_MCU_VOLTAGES(5000, 5000, 0) /* VCC, AVCC, VREF - millivolts */
 
 /*-----------------------------------------------------------------------*/
 
 // set serial port to stdio
-static FILE uart_ostr = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+static FILE uart_ostr = FDEV_SETUP_STREAM(serial_char_send, NULL, _FDEV_SETUP_WRITE);
 static FILE uart_istr = FDEV_SETUP_STREAM(NULL, uart_getchar, _FDEV_SETUP_READ);
 
 // internal timer flags
@@ -201,8 +213,8 @@ panic(void)
 void state_initialize(state_t* state)
 {
     memset(state, 0, sizeof(state_t));
-    state->machine_state[0] = state->machine_state[1] = Start;
-    state->prev_state[0] = state->prev_state[1] = Start;
+    state->machine_state.current = state->machine_state.previous = Start;
+    state->prev_state.current = state->prev_state.previous = Start;
     state->comm_timeout = 250;
     state->command_value = state->lastpos = 1000;
     state->max_slew_speed = 15;
@@ -227,7 +239,7 @@ system_start(void)
 	// now set the clock prescaler to clk / 2
 	CLKPR = _BV(CLKPS0);
 
-	watchdog_init(WDTO_1S);
+	watchdog_init(WDTO_250MS);
 }
 
 /*-----------------------------------------------------------------------*/
@@ -247,6 +259,8 @@ ioinit(adc_results_t* adc_results)
 	uart_init(TX_FIFO_BUFFER_SIZE, tx_fifo_buffer,
               RX_FIFO_BUFFER_SIZE, rx_fifo_buffer);
 	
+	sei();
+
 	puts_P(PSTR("PYPILOT CONTROLLER"));
 	printf_P(PSTR("Hardware: %d Software: %d.%d\n-------------------------\n"),
 			 HARDWARE_REVISION, APP_VERSION_MAJOR, APP_VERSION_MINOR);
@@ -259,7 +273,7 @@ ioinit(adc_results_t* adc_results)
 	
 	// setup CAN stack
 	errcode = can_init(&can_settings, &candev);
-	if (errcode == CAN_OK)
+	if (errcode == CAN_FAILINIT)
 		panic();
 	puts_P(PSTR("can initialized."));
 	
@@ -269,6 +283,16 @@ ioinit(adc_results_t* adc_results)
 		panic();
 	puts_P(PSTR("can self-test complete."));
 
+    // send a test message
+    can_msg_t msg = {
+        .id = 0x123,
+        .idtype = CAN_STANDARD_ID,
+        .rtr = 0,
+        .length = 0,
+    };
+    if (can_send_message(&candev, &msg) != CAN_OK)
+        panic();
+    
     // the adc results
     adc_results_init(adc_results);
     puts_P(PSTR("adc initialized."));
@@ -311,15 +335,12 @@ main(void)
     // initialize hardware
     ioinit(&adc_results);
 
-	sei();
-
 	// keep track of the last time
 	uint32_t lt = jiffie();
 	
     while(1)
     {
 		watchdog_reset();
-
         adc_process(&adc_results);
         
 		int status;
@@ -339,16 +360,21 @@ main(void)
             g_timer200_set = 0;
 			//puts_P(PSTR("200hz"));
 
-            // increment the timeouts
+            // increment the timeout
             state.timeout++;
-            state.comm_timeout++;
 
             // check for incoming bytes, return positive if bytes received
+            // if anything received, reset timeout, otherwise advance
             if (serial_process(&serial_state, &state.flags, &state.cmd))
                 state.comm_timeout = 0;
+            else
+                state.comm_timeout++;
 
+            watchdog_reset();
             adc_process(&adc_results);
-        
+
+            fsm_process(&state, &packet_state, &adc_results);
+            
             // send out packets if ready
             serial_send(&state.cmd);
             
@@ -363,7 +389,7 @@ main(void)
         // 20 hz timer
         if (g_timer20_set)
         {
-            puts_P(PSTR("20hz"));
+            //puts_P(PSTR("20hz"));
             
             g_timer20_set = 0;
         }

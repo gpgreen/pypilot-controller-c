@@ -2,7 +2,8 @@
 #define _SERIAL_H_
 
 /*-----------------------------------------------------------------------*/
-#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
 #include "globals.h"
 
 /*-----------------------------------------------------------------------*/
@@ -21,6 +22,8 @@ extern void serial_initialize_state(serial_state_t* serial_state);
 extern uint8_t serial_get_next_byte(uint8_t *ch);
 
 extern uint8_t serial_transmit_bytes(uint8_t *buf, uint8_t buflen);
+
+extern int serial_char_send(char c, FILE* unused);
 
 extern void serial_send(command_to_execute_t* cmd);
 

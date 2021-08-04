@@ -29,7 +29,7 @@ set(AVR_USE_E_FUSE on)
 set(AVR_E_FUSE 0xfc)
 set(AVR_H_FUSE 0xdb)
 set(AVR_L_FUSE 0x62)
-
+set(AVR_UPLOADTOOL_OPTIONS "-C/home/ggreen/apps/arduino-1.8.15/hardware/tools/avr/etc/avrdude.conf")
 ### END TOOLCHAIN SETUP AREA #############################################
 
 ##########################################################################
@@ -131,7 +131,6 @@ add_definitions("-funsigned-bitfields")
 add_definitions("-ffunction-sections")
 add_definitions("-c")
 add_definitions("-std=gnu99")
-
 ##########################################################################
 # include search paths
 ##########################################################################
@@ -141,6 +140,7 @@ include_directories(
 	"${CMAKE_SOURCE_DIR}/../libs/avr_drivers/drivers"
 	"${CMAKE_SOURCE_DIR}/../libs/avr_drivers/i2cmaster"
 	"${CMAKE_SOURCE_DIR}/../libs/avr_drivers/utils"
+	"/usr/local/include/simavr"
 )
 
 ##################################################################################
@@ -148,13 +148,15 @@ include_directories(
 ##################################################################################
 add_avr_executable(
    pypilot-controller
-   pypilot-controller.c
+   main.c
    gpio.c
    gpio.h
    globals.h
    defs.h
    adc_fifo.h
+   adc_fifo.c
    crc.h
+   crc.c
    serial.h
    serial.c
    packet.h
@@ -163,6 +165,8 @@ add_avr_executable(
    pypilot_eeprom.c
    pypilot_adc.h
    pypilot_adc.c
+   pypilot_fsm.h
+   pypilot_fsm.c
 )
 
 ##################################################################################
@@ -180,7 +184,7 @@ message(STATUS "avrdriverslib: ${DRIVER_LIB}")
 set(I2CMASTER_LIB "${CMAKE_AVRLIBS_PATH}/i2cmaster/libavri2cmaster-${AVR_MCU}.a")
 message(STATUS "avri2cmaster: ${I2CMASTER_LIB}")
 set(UTILS_LIB "${CMAKE_AVRLIBS_PATH}/utils/libavrutils-${AVR_MCU}.a")
-message(STATUS "avrcanlib: ${UTILS_LIB}")
+message(STATUS "avrutilslib: ${UTILS_LIB}")
 
 avr_target_link_libraries(
 	pypilot-controller

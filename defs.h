@@ -22,7 +22,7 @@
 #define RX_FIFO_BUFFER_SIZE             64
 
 /* define baud rate for serial comm */
-#define BAUD                            57600
+#define BAUD                            115200
 
 /* define using Timer2 for jiffies */
 #define USE_TIMER2_JIFFIES             1
@@ -31,8 +31,8 @@
 
 /* DEBUGGING */
        
-#define MCPDEBUG                    1
-#define CANDEBUG                        1
+//#define MCPDEBUG                    1
+//#define CANDEBUG                        1
 
 /*-----------------------------------------------------------------------*/
 
@@ -62,6 +62,16 @@
 #define P_MOSI                          3
 #define P_MISO                          4
 #define P_SCK                           5
+
+/*-----------------------------------------------------------------------*/
+/* Motor pins */
+
+#define DDR_INA                         DDRD
+#define DDR_INB                         DDRD
+#define PORT_INA                        PORTD
+#define PORT_INB                        PORTD
+#define P_INA                           2
+#define P_INB                           3
 
 /*-----------------------------------------------------------------------*/
 #endif  // DEFS_H_

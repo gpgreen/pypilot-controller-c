@@ -12,11 +12,11 @@ void packet_initialize_state(packet_state_t* pkt_state)
 
 /*-----------------------------------------------------------------------*/
 
-void packet_process(state_t* state, packet_state_t* pkt_state, uint8_t* pkt)
+void packet_process(state_t* state, packet_state_t* pkt_state)
 {
-    uint16_t val = pkt[1] | (pkt[2] << 8);
+    uint16_t val = state->cmd.in_packet[1] | (state->cmd.in_packet[2] << 8);
     uint16_t max_max_current = (LOWCURRENT == 0) ? 5000 : 2000;
-    switch (pkt[0]) {
+    switch (state->cmd.in_packet[0]) {
     case CommandCode:
         state->timeout = 0;
         // check for valid range and none of the faults
@@ -58,8 +58,8 @@ void packet_process(state_t* state, packet_state_t* pkt_state, uint8_t* pkt)
         state->cmd.pending_cmd = Disengage;
         break;
     case MaxSlewCode:
-        state->max_slew_speed = pkt[1];
-        state->max_slew_slow = pkt[2];
+        state->max_slew_speed = state->cmd.in_packet[1];
+        state->max_slew_slow = state->cmd.in_packet[2];
         // if set at the end of the range (up to 255) no slew limit
         if (state->max_slew_speed > 250) {
             state->max_slew_speed = 250;
@@ -77,12 +77,12 @@ void packet_process(state_t* state, packet_state_t* pkt_state, uint8_t* pkt)
         break;
     case EEPROMReadCode:
         if (pkt_state->eeprom_read_addr == pkt_state->eeprom_end_addr) {
-            pkt_state->eeprom_read_addr = pkt[1];
-            pkt_state->eeprom_end_addr = pkt[2];
+            pkt_state->eeprom_read_addr = state->cmd.in_packet[1];
+            pkt_state->eeprom_end_addr = state->cmd.in_packet[2];
         }
         break;
     case EEPROMWriteCode:
-        eeprom_update8(pkt[1], pkt[2]);
+        eeprom_update8(state->cmd.in_packet[1], state->cmd.in_packet[2]);
         break;
     case ReprogramCode:
         break;

@@ -3,7 +3,7 @@
 
 /*-----------------------------------------------------------------------*/
 
-#include <inttypes.h>
+#include <stdint.h>
 #include "can.h"
 
 /*-----------------------------------------------------------------------*/
@@ -72,8 +72,9 @@ typedef uint16_t status_flags_t;
 #define EEPROMValueCode             (0x9a)
 #define InvalidCode                 (0x00)
 // for debugging
-#define CurrentFSM                  (0x20)
-#define PreviousFSM                 (0x21)
+#define CurrentFSMCode              (0x20)
+#define PreviousFSMCode             (0x21)
+#define MsgCode                     (0x22)
 
 typedef uint8_t packet_type_t;
 
@@ -109,18 +110,27 @@ typedef enum fsm_states {
     Wait,
     Engaged,
     Operational,
-    DisengageEntry,
+    DisengagedEntry,
+    Disengaged,
     DetachEntry,
     Detach,
     PowerDown,
 } fsm_states_t;
 
 /*-----------------------------------------------------------------------*/
+
+typedef struct fsm_state_memo 
+{
+    fsm_states_t current;
+    fsm_states_t previous;
+} fsm_state_memo_t;
+
+/*-----------------------------------------------------------------------*/
 // main state for the firmware
 typedef struct state 
 {
-    fsm_states_t machine_state[2];
-    fsm_states_t prev_state[2];
+    fsm_state_memo_t machine_state;
+    fsm_state_memo_t prev_state;
     uint16_t timeout;
     uint16_t comm_timeout;
     uint16_t command_value;
