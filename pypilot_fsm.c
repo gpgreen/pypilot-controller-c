@@ -145,9 +145,9 @@ void power_down_mode(state_t* state, adc_results_t* adc_results)
     PRR |= _BV(PRUSART0) | _BV(PRSPI) | _BV(PRTIM0) | _BV(PRTIM1) | _BV(PRTIM2) | _BV(PRADC);
 
     // set watchdog delay longer
-    wdt_enable(WDTO_2S);
+    wdt_enable(WDTO_8S);
 
-    // set PCINT16 interrupt
+    // set PCINT16 interrupt (RXD)
     PCICR |= _BV(PCIE2);
     PCMSK2 |= _BV(0);
 

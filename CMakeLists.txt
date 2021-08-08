@@ -21,6 +21,7 @@ cmake_minimum_required(VERSION 2.8)
 ##################################################################################
 set(AVR_UPLOADTOOL avrdude)
 set(AVR_PROGRAMMER arduino)
+set(AVR_UPLOADTOOL_OPTIONS "-C/home/ggreen/apps/arduino-1.8.15/hardware/tools/avr/etc/avrdude.conf")
 set(AVR_UPLOADTOOL_PORT /dev/ttyUSB0)
 # AVR and fuses needs to be set
 set(AVR_MCU atmega328p)
@@ -29,7 +30,7 @@ set(AVR_USE_E_FUSE on)
 set(AVR_E_FUSE 0xfc)
 set(AVR_H_FUSE 0xdb)
 set(AVR_L_FUSE 0x62)
-set(AVR_UPLOADTOOL_OPTIONS "-C/home/ggreen/apps/arduino-1.8.15/hardware/tools/avr/etc/avrdude.conf")
+
 ### END TOOLCHAIN SETUP AREA #############################################
 
 ##########################################################################

@@ -22,7 +22,7 @@
 #define RX_FIFO_BUFFER_SIZE             64
 
 /* define baud rate for serial comm */
-#define BAUD                            115200
+#define BAUD                            230400
 
 /* define using Timer2 for jiffies */
 #define USE_TIMER2_JIFFIES             1
